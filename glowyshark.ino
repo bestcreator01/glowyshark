@@ -39,6 +39,13 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 // our servo # counter
 uint8_t servonum = 0;
+int analogPin0 = A0; // potentiometer wiper (middle terminal) connected to analog pin 3
+                    // outside leads to ground and +5V
+int analogPin1 = A1;
+int analogPin2 = A2;
+int val = 0;  // variable to store the value read
+int val1 = 0;
+int val2 = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -83,44 +90,152 @@ void setServoPulse(uint8_t n, double pulse) {
   pwm.setPWM(n, 0, pulse);
 }
 
-void loop() {
-  // Drive each servo one at a time using setPWM()
-  // Serial.println(servonum);
-  // for (uint16_t pulselen = SERVOMIN; pulselen < SERVOMAX; pulselen++) {
-  //   pwm.setPWM(servonum, 0, pulselen);
-  // }
+/*
+  There are three rotational servos installed beneath the shark model, enabling it to move in a singular, 
+  forward direction along a circular track. The movement of the shark is defined by three distinct scenarios:
 
-  // delay(500);
-  // for (uint16_t pulselen = SERVOMAX; pulselen > SERVOMIN; pulselen--) {
-  //   pwm.setPWM(servonum, 0, pulselen);
-  // }
+  1) Dark Movement: This scenario serves as the default state. In this mode, the shark remains stationary but engages in subtle, 
+                    wavy movements to simulate the appearance of floating underwater.
+  2) Bright Movement: Triggered by the detection of an approaching individual via a photosensor, this scenario activates the light sensor, 
+                      simulating the shark's instinct to swim. The shark moves away swiftly, covering half the distance of the track to seek 
+                      refuge behind an object, during which lights are turned on to enhance the effect.
+  3) General Movement: Following its escape, the shark returns to its original position, completing a circuit around the track to simulate 
+                      cautiously coming out of hiding. Lights are turned off as the shark resumes its default state. 
+                      Once it reaches the starting point, the cycle begins anew, starting with the Dark Movement scenario.
 
-  // delay(500);
+  These scenarios collectively aim to mimic the natural behavior of a shark in various states of rest, alertness, and movement, providing a dynamic and interactive experience.
+*/
 
-  // // Drive each servo one at a time using writeMicroseconds(), it's not precise due to calculation rounding!
-  // // The writeMicroseconds() function is used to mimic the Arduino Servo library writeMicroseconds() behavior. 
-  // for (uint16_t microsec = USMIN; microsec < USMAX; microsec++) {
-  //   pwm.writeMicroseconds(servonum, microsec);
-  // }
-  uint16_t i = 1250;
-  uint16_t j = 1750;
-  while (i < 1800 && j > 1200)
-  {
-    pwm.writeMicroseconds(1, i);
-    pwm.writeMicroseconds(0, j);
-    delay(1000);
-    i += 250;
-    j -= 250;
+/*
+  This method works as the general movement
+*/
+void transitionMovement() {
+  // Simulate swimming back to the starting position with more pronounced movement
+  for (uint16_t i = 1250; i < 1800; i += 100) {
+    pwm.writeMicroseconds(0, i); // Front servo, initiating turn
+    pwm.writeMicroseconds(1, 1750); // Middle servo, less movement
+    delay(500); // Adjust for desired speed of movement
   }
-  pwm.sleep();
-
-  // delay(500);
-  // for (uint16_t microsec = USMAX; microsec > USMIN; microsec--) {
-  //   pwm.writeMicroseconds(servonum, microsec);
-  // }
-
-  // delay(500);
-
-  // servonum++;
-  // if (servonum > 7) servonum = 0; // Testing the first 8 servo channels
+  // Optional: Add logic to adjust for a precise stop at the default position
 }
+
+
+/*
+  This method works as the bright movement
+*/
+void brightMovement() {
+  // Simulate a quick start to escape
+  int startPulse = 1750; // Starting pulse for rapid movement
+  int endPulse = 1250; // End pulse, simulating slowing down to hide
+  int step = (startPulse - endPulse) / 5; // Divide the movement into steps for smooth transition
+
+  // Accelerate
+  for (int pulse = startPulse; pulse >= endPulse; pulse -= step) {
+    pwm.writeMicroseconds(0, pulse); // Adjust servo for forward movement
+    delay(200); // Short delay for quick start
+  }
+
+  // Optional: Hold the position for a moment to simulate hiding
+  pwm.writeMicroseconds(0, endPulse);
+  delay(1000); // Wait for 1 second to simulate the shark hiding
+
+  // The shark remains in this hiding position until the transitionMovement() is called
+}
+
+
+/*
+  This method works as the dark movement
+*/
+void darkMovement() {
+  // Gentle oscillation around a central position
+  for (int angle = 1450; angle <= 1650; angle += 100) {
+    pwm.writeMicroseconds(0, angle); // Front servo
+    pwm.writeMicroseconds(1, 2000 - angle); // Middle servo, opposite phase
+    pwm.writeMicroseconds(2, angle); // Tail servo, same phase as front
+    delay(600); // Adjust for a smooth, slow movement
+  }
+  for (int angle = 1650; angle >= 1450; angle -= 100) {
+    pwm.writeMicroseconds(0, angle);
+    pwm.writeMicroseconds(1, 2000 - angle); // Middle servo, opposite phase
+    pwm.writeMicroseconds(2, angle); // Tail servo, same phase as front
+    delay(600); // Adjust for a smooth, slow movement
+  }
+}
+
+void loop() {
+  val = analogRead(analogPin0); // Assume this reads ambient light or proximity
+  if (val > 600) { // Bright, someone is close
+    brightMovement();
+    delay(10000); // Wait before returning
+    transitionMovement();
+  } else {
+    darkMovement();
+  }
+}
+
+
+// void loop() {
+
+//   val = analogRead(analogPin0);
+//   val1 = analogRead(analogPin1);
+//   val2 = analogRead(analogPin2);
+//   int sum = (val + val1 + val2) / 3;
+
+//   // When it is bright
+//   if (sum > 600)
+//   {
+//     uint16_t i = 1250;
+//     uint16_t j = 1750;
+//     while (i < 1800 && j > 1200)
+//     {
+//       pwm.writeMicroseconds(2, i);
+//       pwm.writeMicroseconds(0, j);
+//       delay(1000);
+//       i += 250;
+//       j -= 250;
+//     }
+//   }
+//   else
+//   {
+    
+//   }
+//   // Drive each servo one at a time using setPWM()
+//   // Serial.println(servonum);
+//   // for (uint16_t pulselen = SERVOMIN; pulselen < SERVOMAX; pulselen++) {
+//   //   pwm.setPWM(servonum, 0, pulselen);
+//   // }
+
+//   // delay(500);
+//   // for (uint16_t pulselen = SERVOMAX; pulselen > SERVOMIN; pulselen--) {
+//   //   pwm.setPWM(servonum, 0, pulselen);
+//   // }
+
+//   // delay(500);
+
+//   // // Drive each servo one at a time using writeMicroseconds(), it's not precise due to calculation rounding!
+//   // // The writeMicroseconds() function is used to mimic the Arduino Servo library writeMicroseconds() behavior. 
+//   // for (uint16_t microsec = USMIN; microsec < USMAX; microsec++) {
+//   //   pwm.writeMicroseconds(servonum, microsec);
+//   // }
+//   uint16_t i = 1250;
+//   uint16_t j = 1750;
+//   while (i < 1800 && j > 1200)
+//   {
+//     pwm.writeMicroseconds(1, i);
+//     pwm.writeMicroseconds(0, j);
+//     delay(1000);
+//     i += 250;
+//     j -= 250;
+//   }
+//   pwm.sleep();
+
+//   // delay(500);
+//   // for (uint16_t microsec = USMAX; microsec > USMIN; microsec--) {
+//   //   pwm.writeMicroseconds(servonum, microsec);
+//   // }
+
+//   // delay(500);
+
+//   // servonum++;
+//   // if (servonum > 7) servonum = 0; // Testing the first 8 servo channels
+// }
