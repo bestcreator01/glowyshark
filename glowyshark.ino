@@ -21,7 +21,9 @@
 #include <Adafruit_PWMServoDriver.h>
 
 // called this way, it uses the default address 0x40
+
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver();
 // you can also call it with a different address you want
 //Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
 // you can also call it with a different address and I2C interface
@@ -52,6 +54,7 @@ void setup() {
   Serial.println("8 channel Servo test!");
 
   pwm.begin();
+  pwm2.begin();
   /*
    * In theory the internal oscillator (clock) is 25MHz but it really isn't
    * that precise. You can 'calibrate' this by tweaking this number until
@@ -71,6 +74,9 @@ void setup() {
   pwm.setOscillatorFrequency(27000000);
   pwm.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
 
+  pwm2.setOscillatorFrequency(27000000);
+  pwm2.setPWMFreq(SERVO_FREQ);  // Analog servos run at ~50 Hz updates
+
   delay(10);
 }
 
@@ -88,6 +94,7 @@ void setServoPulse(uint8_t n, double pulse) {
   pulse /= pulselength;
   Serial.println(pulse);
   pwm.setPWM(n, 0, pulse);
+  pwm2.setPWM(n, 0, pulse);
 }
 
 /*
@@ -123,53 +130,54 @@ void transitionMovement() {
 /*
   This method works as the bright movement
 */
-void brightMovement() {
-  // Simulate a quick start to escape
-  int startPulse = 1750; // Starting pulse for rapid movement
-  int endPulse = 1250; // End pulse, simulating slowing down to hide
-  int step = (startPulse - endPulse) / 5; // Divide the movement into steps for smooth transition
+void movement() {
+  move180Degrees();
 
-  // Accelerate
-  for (int pulse = startPulse; pulse >= endPulse; pulse -= step) {
-    pwm.writeMicroseconds(0, pulse); // Adjust servo for forward movement
-    delay(200); // Short delay for quick start
-  }
-
-  // Optional: Hold the position for a moment to simulate hiding
-  pwm.writeMicroseconds(0, endPulse);
-  delay(1000); // Wait for 1 second to simulate the shark hiding
-
-  // The shark remains in this hiding position until the transitionMovement() is called
 }
 
-
 /*
-  This method works as the dark movement
+  This helper method would help the shark to move around the track moving 180 degrees.
 */
-void darkMovement() {
+void move180Degrees()
+{
+  pwm2.writeMicroseconds(2, 1600);
+  delay(500);
+
+  // Tail wiggling
+  pwm.writeMicroseconds(1, 1470);
+  delay(300);
+  pwm.writeMicroseconds(1, 1850);
+  delay(300);
+
+  pwm2.writeMicroseconds(2, 1500);
+  delay(500);
+}
+
+void wiggle()
+{
   // Gentle oscillation around a central position
-  for (int angle = 1450; angle <= 1650; angle += 100) {
-    pwm.writeMicroseconds(0, angle); // Front servo
-    pwm.writeMicroseconds(1, 2000 - angle); // Middle servo, opposite phase
-    pwm.writeMicroseconds(2, angle); // Tail servo, same phase as front
-    delay(600); // Adjust for a smooth, slow movement
-  }
-  for (int angle = 1650; angle >= 1450; angle -= 100) {
-    pwm.writeMicroseconds(0, angle);
-    pwm.writeMicroseconds(1, 2000 - angle); // Middle servo, opposite phase
-    pwm.writeMicroseconds(2, angle); // Tail servo, same phase as front
-    delay(600); // Adjust for a smooth, slow movement
-  }
+  pwm.writeMicroseconds(0, 1470);
+  pwm.writeMicroseconds(1, 1470);
+  delay(500);
+  pwm.writeMicroseconds(0, 1850);
+  pwm.writeMicroseconds(1, 1850);
+  delay(500);
 }
 
 void loop() {
   val = analogRead(analogPin0); // Assume this reads ambient light or proximity
-  if (val > 600) { // Bright, someone is close
-    brightMovement();
-    delay(10000); // Wait before returning
-    transitionMovement();
-  } else {
-    darkMovement();
+  Serial.println(val);
+  if (val > 400) { // Bright, someone is close
+    move180Degrees();
+    while(val > 400)
+    {
+      val = analogRead(analogPin0);
+    }
+    move180Degrees();
+  } 
+  else {
+    //movement();
+    wiggle();
   }
 }
 
