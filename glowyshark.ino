@@ -39,8 +39,6 @@ int val = 0;  // variable to store the value read
 int val1 = 0;
 int val2 = 0;
 
-int countRotation = 0;
-
 void setup() {
   Serial.begin(9600);
   Serial.println("8 channel Servo test!");
