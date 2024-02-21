@@ -20,19 +20,9 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
 
-// called this way, it uses the default address 0x40
-
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver();
-// you can also call it with a different address you want
-//Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x41);
-// you can also call it with a different address and I2C interface
-//Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40, Wire);
 
-// Depending on your servo make, the pulse width min and max may vary, you 
-// want these to be as small/large as possible without hitting the hard stop
-// for max range. You'll have to tweak them as necessary to match the servos you
-// have!
 #define SERVOMIN  150 // This is the 'minimum' pulse length count (out of 4096)
 #define SERVOMAX  600 // This is the 'maximum' pulse length count (out of 4096)
 #define USMIN  600 // This is the rounded 'minimum' microsecond length based on the minimum pulse of 150
@@ -48,6 +38,8 @@ int analogPin2 = A2;
 int val = 0;  // variable to store the value read
 int val1 = 0;
 int val2 = 0;
+
+int countRotation = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -80,8 +72,6 @@ void setup() {
   delay(10);
 }
 
-// You can use this function if you'd like to set the pulse length in seconds
-// e.g. setServoPulse(0, 0.001) is a ~1 millisecond pulse width. It's not precise!
 void setServoPulse(uint8_t n, double pulse) {
   double pulselength;
   
@@ -103,7 +93,7 @@ void setServoPulse(uint8_t n, double pulse) {
 
   1) Dark Movement: This scenario serves as the default state. In this mode, the shark remains stationary but engages in subtle, 
                     wavy movements to simulate the appearance of floating underwater.
-  2) Bright Movement: Triggered by the detection of an approaching individual via a photosensor, this scenario activates the light sensor, 
+  2) Bright Movement: Triggered by the detection of an approaching individual via photoresistors, this scenario activates the light sensor, 
                       simulating the shark's instinct to swim. The shark moves away swiftly, covering half the distance of the track to seek 
                       refuge behind an object, during which lights are turned on to enhance the effect.
   3) General Movement: Following its escape, the shark returns to its original position, completing a circuit around the track to simulate 
@@ -114,34 +104,12 @@ void setServoPulse(uint8_t n, double pulse) {
 */
 
 /*
-  This method works as the general movement
-*/
-void transitionMovement() {
-  // Simulate swimming back to the starting position with more pronounced movement
-  for (uint16_t i = 1250; i < 1800; i += 100) {
-    pwm.writeMicroseconds(0, i); // Front servo, initiating turn
-    pwm.writeMicroseconds(1, 1750); // Middle servo, less movement
-    delay(500); // Adjust for desired speed of movement
-  }
-  // Optional: Add logic to adjust for a precise stop at the default position
-}
-
-
-/*
-  This method works as the bright movement
-*/
-void movement() {
-  move180Degrees();
-
-}
-
-/*
   This helper method would help the shark to move around the track moving 180 degrees.
 */
 void move180Degrees()
 {
   pwm2.writeMicroseconds(2, 1600);
-  delay(500);
+  delay(800);
 
   // Tail wiggling
   pwm.writeMicroseconds(1, 1470);
@@ -149,8 +117,21 @@ void move180Degrees()
   pwm.writeMicroseconds(1, 1850);
   delay(300);
 
-  pwm2.writeMicroseconds(2, 1500);
-  delay(500);
+  pwm2.writeMicroseconds(2, 0);
+}
+
+void moveBackwards()
+{
+  pwm2.writeMicroseconds(2, 1390);
+  delay(600);
+
+  // Tail wiggling
+  pwm.writeMicroseconds(1, 1470);
+  delay(300);
+  pwm.writeMicroseconds(1, 1850);
+  delay(300);
+
+  pwm2.writeMicroseconds(2, 0);
 }
 
 void wiggle()
@@ -158,7 +139,7 @@ void wiggle()
   // Gentle oscillation around a central position
   pwm.writeMicroseconds(0, 1470);
   pwm.writeMicroseconds(1, 1470);
-  delay(500);
+  delay(500); 
   pwm.writeMicroseconds(0, 1850);
   pwm.writeMicroseconds(1, 1850);
   delay(500);
@@ -166,84 +147,26 @@ void wiggle()
 
 void loop() {
   val = analogRead(analogPin0); // Assume this reads ambient light or proximity
-  Serial.println(val);
-  if (val > 400) { // Bright, someone is close
+  val1 = analogRead(analogPin1);
+  val2 = analogRead(analogPin2);
+
+  int val3 = (val + val1 + val2) / 3;
+
+  if (val3 > 500) { // Bright, someone is close
     move180Degrees();
-    while(val > 400)
+
+    while(val3 > 500)
     {
+      Serial.println("Waiting for dark");
       val = analogRead(analogPin0);
+      val1 = analogRead(analogPin1);
+      val2 = analogRead(analogPin2); 
+
+      val3 = (val + val1+ val2) / 3;
     }
-    move180Degrees();
+    moveBackwards();
   } 
   else {
-    //movement();
     wiggle();
   }
 }
-
-
-// void loop() {
-
-//   val = analogRead(analogPin0);
-//   val1 = analogRead(analogPin1);
-//   val2 = analogRead(analogPin2);
-//   int sum = (val + val1 + val2) / 3;
-
-//   // When it is bright
-//   if (sum > 600)
-//   {
-//     uint16_t i = 1250;
-//     uint16_t j = 1750;
-//     while (i < 1800 && j > 1200)
-//     {
-//       pwm.writeMicroseconds(2, i);
-//       pwm.writeMicroseconds(0, j);
-//       delay(1000);
-//       i += 250;
-//       j -= 250;
-//     }
-//   }
-//   else
-//   {
-    
-//   }
-//   // Drive each servo one at a time using setPWM()
-//   // Serial.println(servonum);
-//   // for (uint16_t pulselen = SERVOMIN; pulselen < SERVOMAX; pulselen++) {
-//   //   pwm.setPWM(servonum, 0, pulselen);
-//   // }
-
-//   // delay(500);
-//   // for (uint16_t pulselen = SERVOMAX; pulselen > SERVOMIN; pulselen--) {
-//   //   pwm.setPWM(servonum, 0, pulselen);
-//   // }
-
-//   // delay(500);
-
-//   // // Drive each servo one at a time using writeMicroseconds(), it's not precise due to calculation rounding!
-//   // // The writeMicroseconds() function is used to mimic the Arduino Servo library writeMicroseconds() behavior. 
-//   // for (uint16_t microsec = USMIN; microsec < USMAX; microsec++) {
-//   //   pwm.writeMicroseconds(servonum, microsec);
-//   // }
-//   uint16_t i = 1250;
-//   uint16_t j = 1750;
-//   while (i < 1800 && j > 1200)
-//   {
-//     pwm.writeMicroseconds(1, i);
-//     pwm.writeMicroseconds(0, j);
-//     delay(1000);
-//     i += 250;
-//     j -= 250;
-//   }
-//   pwm.sleep();
-
-//   // delay(500);
-//   // for (uint16_t microsec = USMAX; microsec > USMIN; microsec--) {
-//   //   pwm.writeMicroseconds(servonum, microsec);
-//   // }
-
-//   // delay(500);
-
-//   // servonum++;
-//   // if (servonum > 7) servonum = 0; // Testing the first 8 servo channels
-// }
